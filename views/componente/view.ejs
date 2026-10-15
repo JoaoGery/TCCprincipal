@@ -1,0 +1,55 @@
+<%- include('../partials/header', { title: 'Detalhes do componente | AssistTech' }) %>
+
+<div class="container">
+  <% const stockClass = componente.quantidadeDisponivel > 5 ? 'stock-ok' : componente.quantidadeDisponivel > 0 ? 'stock-low' : 'stock-out'; %>
+
+  <div class="d-flex flex-column flex-md-row justify-content-between gap-3 page-heading">
+    <div>
+      <div class="page-eyebrow">Estoque</div>
+      <h1 class="page-title"><%= componente.nome %></h1>
+      <p class="page-subtitle">Detalhes de cadastro, estoque e valor financeiro do componente.</p>
+    </div>
+    <div class="d-flex gap-2 align-items-start page-actions">
+      <a href="/componentes" class="btn btn-outline-secondary">Voltar</a>
+      <a href="/componentes/<%= componente._id %>/editar" class="btn btn-primary">Editar</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <section class="content-card form-card">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="info-label">Categoria</div>
+            <div class="info-value"><%= componente.categoria %></div>
+          </div>
+          <div class="col-md-6">
+            <div class="info-label">Fornecedor</div>
+            <div class="info-value"><%= componente.fornecedor || 'Não informado' %></div>
+          </div>
+          <div class="col-md-6">
+            <div class="info-label">Quantidade</div>
+            <div class="info-value"><span class="status-badge <%= stockClass %>"><%= componente.quantidadeDisponivel %></span></div>
+          </div>
+          <div class="col-md-6">
+            <div class="info-label">Preço unitário</div>
+            <div class="info-value">R$ <%= Number(componente.precoUnitario || 0).toFixed(2) %></div>
+          </div>
+          <div class="col-12">
+            <div class="info-label">Descrição</div>
+            <div class="info-value"><%= componente.descricao || 'Nenhuma descrição registrada.' %></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-lg-4">
+      <section class="content-card form-card">
+        <div class="info-label">Valor total em estoque</div>
+        <div class="metric-value">R$ <%= (Number(componente.quantidadeDisponivel || 0) * Number(componente.precoUnitario || 0)).toFixed(2) %></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

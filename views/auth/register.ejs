@@ -1,0 +1,51 @@
+<%- include('../partials/header', { title: 'Cadastrar usuário | AssistTech' }) %>
+
+<div class="container auth-page">
+  <div class="auth-card auth-card-register">
+    <section class="auth-intro">
+      <div class="auth-intro-mark" aria-hidden="true">A</div>
+      <div class="page-eyebrow">Primeiro acesso</div>
+      <h1>Comece a organizar a sua assistência técnica.</h1>
+      <p>Crie o usuário que terá acesso ao painel de gestão do projeto.</p>
+      <div class="auth-security-note"><span aria-hidden="true">✓</span> Dados protegidos por autenticação</div>
+    </section>
+
+    <section class="auth-form-area" aria-labelledby="register-title">
+      <div class="page-heading text-center">
+        <div class="page-eyebrow">Novo acesso</div>
+        <h1 class="page-title" id="register-title">Criar conta</h1>
+        <p class="page-subtitle mx-auto">Crie uma conta para operar o sistema de assistência técnica.</p>
+      </div>
+
+      <div class="auth-form">
+        <%- include('../partials/flash') %>
+        <% if (error) { %>
+          <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <form action="/auth/register" method="POST" class="vstack gap-3">
+          <div>
+            <label class="form-label" for="nome">Nome</label>
+            <input class="form-control" type="text" id="nome" name="nome" value="<%= user.nome || '' %>" autocomplete="name" required>
+          </div>
+
+          <div>
+            <label class="form-label" for="email">E-mail</label>
+            <input class="form-control" type="email" id="email" name="email" value="<%= user.email || '' %>" autocomplete="email" required>
+          </div>
+
+          <div>
+            <label class="form-label" for="senha">Senha</label>
+            <input class="form-control" type="password" id="senha" name="senha" minlength="6" autocomplete="new-password" required>
+            <div class="form-text">Use no mínimo 6 caracteres.</div>
+          </div>
+
+          <button class="btn btn-primary w-100" type="submit">Criar conta</button>
+          <p class="auth-switch mb-0">Já possui acesso? <a href="/auth/login">Entrar no sistema</a></p>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

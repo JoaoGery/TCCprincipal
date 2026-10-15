@@ -1,0 +1,81 @@
+<%- include('../partials/header', { title: 'Manutenções | AssistTech' }) %>
+
+<div class="container">
+  <%- include('../partials/flash') %>
+  <div class="d-flex flex-column flex-md-row justify-content-between gap-3 page-heading">
+    <div>
+      <div class="page-eyebrow">Ordens de serviço</div>
+      <h1 class="page-title">Manutenções</h1>
+      <p class="page-subtitle">Acompanhe equipamentos em análise, em reparo e concluídos.</p>
+    </div>
+    <div class="d-flex gap-2 align-items-start page-actions">
+      <a href="/manutencoes/novo" class="btn btn-primary">Nova manutenção</a>
+    </div>
+  </div>
+
+  <form class="content-card filter-card mb-3" method="get" action="/manutencoes">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label" for="q">Pesquisar</label>
+        <input id="q" type="search" name="q" class="form-control" value="<%= typeof q !== 'undefined' ? q : '' %>" placeholder="Marca, modelo ou problema relatado">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="status">Status</label>
+        <select id="status" class="form-select" name="status">
+          <option value="">Todos</option>
+          <option value="em_analise" <%= status === 'em_analise' ? 'selected' : '' %>>Em análise</option>
+          <option value="em_reparo" <%= status === 'em_reparo' ? 'selected' : '' %>>Em reparo</option>
+          <option value="concluido" <%= status === 'concluido' ? 'selected' : '' %>>Concluído</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-outline-primary flex-fill">Filtrar</button>
+      </div>
+    </div>
+  </form>
+
+  <section class="content-card">
+    <% if (!manutencoes || manutencoes.length === 0) { %>
+      <div class="empty-state">Nenhuma manutenção cadastrada.</div>
+    <% } else { %>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>OS</th>
+              <th>Cliente</th>
+              <th>Equipamento</th>
+              <th>Problema</th>
+              <th>Status</th>
+              <th>Valor</th>
+              <th class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% manutencoes.forEach(function(manutencao, index){ %>
+              <% const statusMap = { em_analise: ['status-analysis', 'Em análise'], em_reparo: ['status-repair', 'Em reparo'], concluido: ['status-done', 'Concluído'] }; %>
+              <% const statusInfo = statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status']; %>
+              <tr>
+                <td><strong><%= manutencao.numeroOrdem || '#' + (index + 1) %></strong></td>
+                <td><strong><%= manutencao.cliente?.nome || '-' %></strong></td>
+                <td><%= manutencao.marcaComputador || '-' %> <%= manutencao.modeloComputador || '' %></td>
+                <td><%= (manutencao.descricaoProblema || '-').substring(0, 48) %><%= (manutencao.descricaoProblema || '').length > 48 ? '...' : '' %></td>
+                <td><span class="status-badge <%= statusInfo[0] %>"><%= statusInfo[1] %></span></td>
+                <td>R$ <%= Number(manutencao.valorTotal || 0).toFixed(2) %></td>
+                <td class="text-end">
+                  <a href="/manutencoes/<%= manutencao._id %>" class="btn btn-sm btn-outline-primary">Ver</a>
+                  <a href="/manutencoes/<%= manutencao._id %>/editar" class="btn btn-sm btn-outline-secondary">Editar</a>
+                  <form action="/manutencoes/<%= manutencao._id %>/deletar" method="POST" class="d-inline" onsubmit="return confirm('Deseja realmente excluir esta manutenção?')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

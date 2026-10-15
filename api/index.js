@@ -1,0 +1,6 @@
+import { createApp } from '../config/app.js';
+
+export default async function handler(req, res) {
+  const app = await createApp();
+  return app(req, res);
+}

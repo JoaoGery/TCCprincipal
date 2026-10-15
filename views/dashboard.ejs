@@ -1,0 +1,130 @@
+<%- include('partials/header', { title: 'Dashboard | AssistTech' }) %>
+
+<div class="container">
+  <%- include('partials/flash') %>
+  <section class="hero-panel page-heading">
+    <div class="page-eyebrow">Painel operacional</div>
+    <h1 class="page-title">Sistema de Assistência Técnica</h1>
+    <p class="page-subtitle">Controle clientes, ordens de manutenção e estoque de componentes em uma rotina simples para demonstração e uso real.</p>
+  </section>
+
+  <section class="metric-grid mb-4" aria-label="Indicadores do sistema">
+    <div class="metric-card">
+      <div class="metric-value"><%= totalClientes || 0 %></div>
+      <div class="metric-label">Clientes cadastrados</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value"><%= totalManutencoes || 0 %></div>
+      <div class="metric-label">Manutenções registradas</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value text-warning"><%= totalEmAnalise || 0 %></div>
+      <div class="metric-label">Em análise</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value text-info"><%= totalEmReparo || 0 %></div>
+      <div class="metric-label">Em reparo</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value text-success"><%= totalConcluidas || 0 %></div>
+      <div class="metric-label">Concluídas</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value"><%= totalComponentes || 0 %></div>
+      <div class="metric-label">Componentes no catálogo</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value text-success">R$ <%= Number(faturamentoConcluido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></div>
+      <div class="metric-label">Faturamento concluído</div>
+    </div>
+  </section>
+
+  <section class="action-grid mb-4">
+    <div class="action-card">
+      <h3>Clientes</h3>
+      <p>Cadastro de pessoas atendidas, contatos e dados de localização.</p>
+      <div class="d-flex gap-2">
+        <a class="btn btn-primary" href="/cliente">Listar</a>
+        <a class="btn btn-outline-primary" href="/cliente/novo">Novo</a>
+      </div>
+    </div>
+    <div class="action-card">
+      <h3>Manutenções</h3>
+      <p>Abertura, acompanhamento e fechamento das ordens de serviço.</p>
+      <div class="d-flex gap-2">
+        <a class="btn btn-primary" href="/manutencoes">Listar</a>
+        <a class="btn btn-outline-primary" href="/manutencoes/novo">Nova</a>
+      </div>
+    </div>
+    <div class="action-card">
+      <h3>Componentes</h3>
+      <p>Controle de peças usadas nos reparos e consulta de estoque.</p>
+      <div class="d-flex gap-2">
+        <a class="btn btn-primary" href="/componentes">Listar</a>
+        <a class="btn btn-outline-primary" href="/componentes/novo">Novo</a>
+      </div>
+    </div>
+  </section>
+
+  <% if (componentesBaixos && componentesBaixos.length > 0) { %>
+    <section class="content-card mb-4" aria-labelledby="estoque-baixo-title">
+      <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+        <div>
+          <span id="estoque-baixo-title">Atenção ao estoque</span>
+          <small class="d-block text-secondary fw-normal">Itens com cinco unidades ou menos</small>
+        </div>
+        <a class="btn btn-sm btn-outline-primary" href="/componentes">Gerenciar estoque</a>
+      </div>
+      <div class="list-group list-group-flush">
+        <% componentesBaixos.forEach(function(componente) { %>
+          <% const stockClass = componente.quantidadeDisponivel > 0 ? 'stock-low' : 'stock-out'; %>
+          <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-3" href="/componentes/<%= componente._id %>">
+            <span><strong><%= componente.nome %></strong><small class="d-block text-secondary"><%= componente.categoria %></small></span>
+            <span class="status-badge <%= stockClass %>"><%= componente.quantidadeDisponivel %> un.</span>
+          </a>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <section class="content-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>Manutenções recentes</span>
+      <a class="btn btn-sm btn-outline-primary" href="/manutencoes">Ver todas</a>
+    </div>
+    <% if (manutencoes && manutencoes.length > 0) { %>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Equipamento</th>
+              <th>Problema</th>
+              <th>Status</th>
+              <th class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% manutencoes.forEach(function(manutencao) { %>
+              <% const statusMap = { em_analise: ['status-analysis', 'Em análise'], em_reparo: ['status-repair', 'Em reparo'], concluido: ['status-done', 'Concluído'] }; %>
+              <% const statusInfo = statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status']; %>
+              <tr>
+                <td><%= manutencao.dataEntrada ? new Date(manutencao.dataEntrada).toLocaleDateString('pt-BR') : '-' %></td>
+                <td><strong><%= manutencao.cliente?.nome || 'Cliente removido' %></strong></td>
+                <td><%= manutencao.marcaComputador || '-' %> <%= manutencao.modeloComputador || '' %></td>
+                <td><%= (manutencao.descricaoProblema || '-').substring(0, 45) %><%= (manutencao.descricaoProblema || '').length > 45 ? '...' : '' %></td>
+                <td><span class="status-badge <%= statusInfo[0] %>"><%= statusInfo[1] %></span></td>
+                <td class="text-end"><a href="/manutencoes/<%= manutencao._id %>" class="btn btn-sm btn-outline-primary">Ver</a></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } else { %>
+      <div class="empty-state">Nenhuma manutenção registrada ainda.</div>
+    <% } %>
+  </section>
+</div>
+
+<%- include('partials/footer') %>
