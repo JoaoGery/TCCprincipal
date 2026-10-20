@@ -6,6 +6,11 @@ import { isValidObjectId, parsePositiveNumber, sanitizeText } from '../utils/val
 import { setFlash } from '../utils/flash.js';
 
 const VALID_STATUSES = ['em_analise', 'em_reparo', 'concluido'];
+const STATUS_LABELS = {
+  em_analise: 'Em análise',
+  em_reparo: 'Em reparo',
+  concluido: 'Concluído'
+};
 
 const nextServiceOrder = async () => {
   const year = new Date().getFullYear();
@@ -68,6 +73,28 @@ const releaseComponents = async (componentIds = []) => {
   }
 };
 
+const getWhatsAppNumber = (phone = '') => {
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) return digits;
+  return null;
+};
+
+const buildCustomerMessage = (manutencao) => {
+  const nome = manutencao.cliente?.nome || 'cliente';
+  const equipamento = [manutencao.marcaComputador, manutencao.modeloComputador].filter(Boolean).join(' ');
+
+  return [
+    `Olá, ${nome}! Temos uma atualização sobre sua manutenção na AssistTech.`,
+    '',
+    `Ordem de serviço: ${manutencao.numeroOrdem || 'Não informada'}`,
+    `Equipamento: ${equipamento || 'Não informado'}`,
+    `Status atual: ${STATUS_LABELS[manutencao.status] || 'Não informado'}`,
+    '',
+    'Estamos à disposição para esclarecer qualquer dúvida.'
+  ].join('\n');
+};
+
 const renderMaintenanceForm = async (res, statusCode, manutencao, error) => {
   const [clientes, componentes] = await Promise.all([
     Cliente.find().sort({ nome: 1 }).lean(),
@@ -116,7 +143,21 @@ export const view = async (req, res) => {
   try {
     const manutencao = await Manutencao.findById(req.params.id).populate('cliente componentes').lean();
     if (!manutencao) return res.status(404).send('Manutenção não encontrada');
-    res.render('manutencao/view', { manutencao });
+    const mensagemCliente = buildCustomerMessage(manutencao);
+    const whatsappNumber = getWhatsAppNumber(manutencao.cliente?.telefone);
+    const whatsappUrl = whatsappNumber
+      ? `https://wa.me/${whatsappNumber}?${new URLSearchParams({ text: mensagemCliente })}`
+      : null;
+    const gmailUrl = manutencao.cliente?.email
+      ? `https://mail.google.com/mail/?${new URLSearchParams({
+          view: 'cm',
+          fs: '1',
+          to: manutencao.cliente.email,
+          su: `Atualização da manutenção ${manutencao.numeroOrdem || ''}`.trim(),
+          body: mensagemCliente
+        })}`
+      : null;
+    res.render('manutencao/view', { manutencao, mensagemCliente, whatsappUrl, gmailUrl });
   } catch (err) {
     console.error(err);
     res.status(500).send('Erro ao buscar manutenção');
@@ -159,15 +200,24 @@ export const create = async (req, res) => {
     }
 
     await reserveComponents(componentes);
+    let manutencaoCriada;
     try {
       const numeroOrdem = await nextServiceOrder();
-      await Manutencao.create({ numeroOrdem, cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes, status: 'em_analise' });
+      manutencaoCriada = await Manutencao.create({ numeroOrdem, cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes, status: 'em_analise' });
     } catch (error) {
       await releaseComponents(componentes);
       throw error;
     }
 
-    setFlash(req, 'success', 'Ordem de serviço aberta com sucesso.');
+    const prepararEnvio = req.body.prepararEnvio === 'on';
+    setFlash(
+      req,
+      'success',
+      prepararEnvio
+        ? 'Ordem de serviço aberta. Escolha um canal abaixo para revisar e enviar a mensagem ao cliente.'
+        : 'Ordem de serviço aberta com sucesso.'
+    );
+    if (prepararEnvio) return res.redirect(`/manutencoes/${manutencaoCriada._id}`);
     return res.redirect('/manutencoes');
   } catch (err) {
     console.error(err);

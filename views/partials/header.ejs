@@ -10,9 +10,18 @@
 <body>
   <nav class="navbar navbar-expand-lg app-navbar">
     <div class="container">
-      <a class="navbar-brand" href="<%= currentUser ? '/' : '/auth/login' %>">
-        <span class="brand-mark" aria-hidden="true">A</span> AssistTech
-      </a>
+      <div class="brand-accessibility">
+        <a class="navbar-brand" href="<%= currentUser ? '/' : '/auth/login' %>">
+          <span class="brand-mark" aria-hidden="true">A</span> AssistTech
+        </a>
+        <button class="accessibility-trigger" type="button" data-a11y-open aria-label="Abrir opções de acessibilidade" title="Acessibilidade" aria-haspopup="dialog" aria-controls="accessibility-dialog">
+          <svg aria-hidden="true" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="22" fill="currentColor" />
+            <circle cx="24" cy="13" r="4" fill="white" />
+            <path d="M24 18c-1.2 0-2.3.1-3.4.3l-8.4 2.1a2 2 0 0 0 1 3.9l6.7-1.7-1.5 7.4-5.4 8.1a2.2 2.2 0 0 0 3.7 2.4l6.1-9.1h2.4l6.1 9.1a2.2 2.2 0 0 0 3.7-2.4l-5.4-8.1-1.5-7.4 6.7 1.7a2 2 0 0 0 1-3.9l-8.4-2.1A14.7 14.7 0 0 0 24 18z" fill="white" />
+          </svg>
+        </button>
+      </div>
       <% if (currentUser) { %>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Abrir menu">
           <span class="navbar-toggler-icon"></span>
@@ -36,4 +45,5 @@
       <% } %>
     </div>
   </nav>
+  <%- include('accessibility-modal') %>
   <main class="app-shell">

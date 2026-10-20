@@ -1,6 +1,7 @@
 <%- include('../partials/header', { title: 'Detalhes da manutenção | AssistTech' }) %>
 
 <div class="container">
+  <%- include('../partials/flash') %>
   <% const statusMap = { em_analise: ['status-analysis', 'Em análise'], em_reparo: ['status-repair', 'Em reparo'], concluido: ['status-done', 'Concluído'] }; %>
   <% const statusInfo = statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status']; %>
 
@@ -76,6 +77,28 @@
       <section class="content-card form-card">
         <div class="info-label">Valor total</div>
         <div class="metric-value">R$ <%= Number(manutencao.valorTotal || 0).toFixed(2) %></div>
+      </section>
+
+      <section class="content-card form-card customer-message-card">
+        <div class="page-eyebrow">Comunicação</div>
+        <h2 class="h5 mb-2">Enviar atualização ao cliente</h2>
+        <p class="text-secondary">A mensagem inclui o nome do cliente, o equipamento, a ordem de serviço e o status atual. Revise o texto antes de enviar.</p>
+        <details class="customer-message-preview">
+          <summary>Visualizar mensagem</summary>
+          <p><%= mensagemCliente %></p>
+        </details>
+        <div class="customer-message-actions">
+          <% if (whatsappUrl) { %>
+            <a class="btn btn-success" href="<%= whatsappUrl %>" target="_blank" rel="noopener noreferrer">Abrir no WhatsApp</a>
+          <% } else { %>
+            <span class="form-text">Telefone inválido para criar uma mensagem no WhatsApp.</span>
+          <% } %>
+          <% if (gmailUrl) { %>
+            <a class="btn btn-outline-primary" href="<%= gmailUrl %>" target="_blank" rel="noopener noreferrer">Abrir no Gmail</a>
+          <% } else { %>
+            <span class="form-text">Cliente sem e-mail cadastrado.</span>
+          <% } %>
+        </div>
       </section>
     </div>
   </div>

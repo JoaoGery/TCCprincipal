@@ -1,0 +1,39 @@
+<dialog class="accessibility-dialog" id="accessibility-dialog" aria-labelledby="accessibility-title">
+  <div class="accessibility-dialog-header">
+    <h2 id="accessibility-title">Opções de acessibilidade</h2>
+    <button class="accessibility-close" type="button" data-a11y-close aria-label="Fechar opções de acessibilidade">&times;</button>
+  </div>
+  <p class="accessibility-description">Personalize a aparência para facilitar a leitura e o uso do site.</p>
+  <div class="accessibility-options">
+    <button class="btn btn-outline-secondary accessibility-option" type="button" data-a11y-contrast aria-pressed="false">
+      <svg class="accessibility-option-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3a9 9 0 0 0 0 18V3Z" fill="currentColor" stroke="none" />
+      </svg>
+      <span>Alto contraste</span>
+    </button>
+    <button class="btn btn-outline-secondary accessibility-option" type="button" data-a11y-theme aria-pressed="false">
+      <svg class="accessibility-option-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.6 8.6 0 1 0 20.2 15.4Z" />
+      </svg>
+      <span>Modo escuro</span>
+    </button>
+    <section class="accessibility-font-section" aria-labelledby="accessibility-font-title">
+      <h3 id="accessibility-font-title">Tamanho da fonte</h3>
+      <div class="accessibility-font-options" role="group" aria-labelledby="accessibility-font-title">
+        <button class="accessibility-font-option" type="button" data-a11y-font-size="normal" aria-label="Fonte padrão" aria-pressed="true">
+          <span class="font-size-sample font-size-sample-normal" aria-hidden="true">A</span>
+          <span>Padrão</span>
+        </button>
+        <button class="accessibility-font-option" type="button" data-a11y-font-size="medium" aria-label="Fonte média" aria-pressed="false">
+          <span class="font-size-sample font-size-sample-medium" aria-hidden="true">A</span>
+          <span>Média</span>
+        </button>
+        <button class="accessibility-font-option" type="button" data-a11y-font-size="large" aria-label="Fonte grande" aria-pressed="false">
+          <span class="font-size-sample font-size-sample-large" aria-hidden="true">A</span>
+          <span>Grande</span>
+        </button>
+      </div>
+    </section>
+  </div>
+</dialog>
