@@ -27,14 +27,42 @@ const normalizeComponentIds = (ids = []) => {
   return [...new Set(list.filter(Boolean).map(String))];
 };
 
-const getComponentDiff = (previousIds = [], nextIds = []) => {
-  const previous = normalizeComponentIds(previousIds.map(id => id?._id || id));
-  const next = normalizeComponentIds(nextIds);
+const normalizeComponentUsage = (ids = [], body = {}) => {
+  return normalizeComponentIds(ids).map(id => {
+    const rawQuantity = body?.[`quantidade-${id}`] ?? body?.quantidades?.[id] ?? 1;
+    const quantidade = Math.floor(Number(rawQuantity));
+    return {
+      componente: id,
+      quantidade: Number.isInteger(quantidade) && quantidade > 0 ? quantidade : 0
+    };
+  });
+};
 
-  return {
-    added: next.filter(id => !previous.includes(id)),
-    removed: previous.filter(id => !next.includes(id))
-  };
+const getStoredComponentUsage = (manutencao = {}) => {
+  if (Array.isArray(manutencao.componentesUsados) && manutencao.componentesUsados.length) {
+    return manutencao.componentesUsados.map(item => ({
+      componente: String(item.componente?._id || item.componente),
+      quantidade: Math.max(1, Math.floor(Number(item.quantidade || 1)))
+    })).filter(item => item.componente && item.componente !== 'undefined');
+  }
+
+  return normalizeComponentIds(manutencao.componentes || []).map(id => ({ componente: id, quantidade: 1 }));
+};
+
+const getUsageStockDiff = (previousUsage = [], nextUsage = []) => {
+  const previousMap = new Map(previousUsage.map(item => [item.componente, item.quantidade]));
+  const nextMap = new Map(nextUsage.map(item => [item.componente, item.quantidade]));
+  const differences = [];
+
+  for (const [id, quantity] of nextMap) {
+    const difference = quantity - (previousMap.get(id) || 0);
+    if (difference !== 0) differences.push({ componente: id, quantidade: difference });
+  }
+  for (const [id, quantity] of previousMap) {
+    if (!nextMap.has(id)) differences.push({ componente: id, quantidade: -quantity });
+  }
+
+  return differences;
 };
 
 const stockError = (message) => {
@@ -43,34 +71,57 @@ const stockError = (message) => {
   return error;
 };
 
-const reserveComponents = async (componentIds = []) => {
+const reserveComponentUsage = async (usage = []) => {
   const reserved = [];
 
-  for (const id of componentIds) {
-    const component = await Componente.findById(id).select('nome').lean();
+  for (const item of usage) {
+    const component = await Componente.findById(item.componente).select('nome quantidadeDisponivel').lean();
     if (!component) {
-      await releaseComponents(reserved);
+      await releaseComponentUsage(reserved);
       throw stockError('Um dos componentes selecionados não foi encontrado. Atualize a página e tente novamente.');
     }
 
     const result = await Componente.updateOne(
-      { _id: id, quantidadeDisponivel: { $gte: 1 } },
-      { $inc: { quantidadeDisponivel: -1 } }
+      { _id: item.componente, quantidadeDisponivel: { $gte: item.quantidade } },
+      { $inc: { quantidadeDisponivel: -item.quantidade } }
     );
 
     if (!result.modifiedCount) {
-      await releaseComponents(reserved);
-      throw stockError(`Não há estoque disponível para ${component.nome}.`);
+      await releaseComponentUsage(reserved);
+      throw stockError(`Não há estoque suficiente para ${component.nome}. Disponível: ${component.quantidadeDisponivel || 0}; solicitado: ${item.quantidade}.`);
     }
 
-    reserved.push(id);
+    reserved.push(item);
   }
 };
 
-const releaseComponents = async (componentIds = []) => {
-  if (componentIds.length) {
-    await Componente.updateMany({ _id: { $in: componentIds } }, { $inc: { quantidadeDisponivel: 1 } });
+const releaseComponentUsage = async (usage = []) => {
+  for (const item of usage) {
+    await Componente.updateOne(
+      { _id: item.componente },
+      { $inc: { quantidadeDisponivel: item.quantidade } }
+    );
   }
+};
+
+const adjustStockForUsageDiff = async (differences = []) => {
+  const reserved = [];
+
+  try {
+    for (const difference of differences) {
+      if (difference.quantidade > 0) {
+        await reserveComponentUsage([{ componente: difference.componente, quantidade: difference.quantidade }]);
+        reserved.push({ componente: difference.componente, quantidade: difference.quantidade });
+      } else {
+        await releaseComponentUsage([{ componente: difference.componente, quantidade: Math.abs(difference.quantidade) }]);
+      }
+    }
+  } catch (error) {
+    await releaseComponentUsage(reserved);
+    throw error;
+  }
+
+  return reserved;
 };
 
 const getWhatsAppNumber = (phone = '') => {
@@ -120,10 +171,16 @@ export const list = async (req, res) => {
     }
 
     if (q) {
+      const clientesEncontrados = await Cliente.find({
+        nome: { $regex: q, $options: 'i' }
+      }).select('_id').lean();
+
       filtro.$or = [
+        { numeroOrdem: { $regex: q, $options: 'i' } },
         { marcaComputador: { $regex: q, $options: 'i' } },
         { modeloComputador: { $regex: q, $options: 'i' } },
-        { descricaoProblema: { $regex: q, $options: 'i' } }
+        { descricaoProblema: { $regex: q, $options: 'i' } },
+        { cliente: { $in: clientesEncontrados.map(cliente => cliente._id) } }
       ];
     }
 
@@ -141,7 +198,7 @@ export const list = async (req, res) => {
 
 export const view = async (req, res) => {
   try {
-    const manutencao = await Manutencao.findById(req.params.id).populate('cliente componentes').lean();
+    const manutencao = await Manutencao.findById(req.params.id).populate('cliente componentes componentesUsados.componente').lean();
     if (!manutencao) return res.status(404).send('Manutenção não encontrada');
     const mensagemCliente = buildCustomerMessage(manutencao);
     const whatsappNumber = getWhatsAppNumber(manutencao.cliente?.telefone);
@@ -184,8 +241,9 @@ export const create = async (req, res) => {
     const modeloComputador = sanitizeText(req.body.modeloComputador);
     const descricaoProblema = sanitizeText(req.body.descricaoProblema);
     const componentes = normalizeComponentIds(req.body.componentes);
+    const componentesUsados = normalizeComponentUsage(req.body.componentes, req.body);
 
-    if (!isValidObjectId(clienteId) || !marcaComputador || !modeloComputador || !descricaoProblema || !componentes.every(isValidObjectId)) {
+    if (!isValidObjectId(clienteId) || !marcaComputador || !modeloComputador || !descricaoProblema || !componentes.every(isValidObjectId) || componentesUsados.some(item => item.quantidade < 1)) {
       return renderMaintenanceForm(
         res,
         400,
@@ -199,13 +257,13 @@ export const create = async (req, res) => {
       return renderMaintenanceForm(res, 400, { cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes }, 'O cliente selecionado não existe mais.');
     }
 
-    await reserveComponents(componentes);
+    await reserveComponentUsage(componentesUsados);
     let manutencaoCriada;
     try {
       const numeroOrdem = await nextServiceOrder();
-      manutencaoCriada = await Manutencao.create({ numeroOrdem, cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes, status: 'em_analise' });
+      manutencaoCriada = await Manutencao.create({ numeroOrdem, cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes, componentesUsados, status: 'em_analise' });
     } catch (error) {
-      await releaseComponents(componentes);
+      await releaseComponentUsage(componentesUsados);
       throw error;
     }
 
@@ -260,6 +318,7 @@ export const update = async (req, res) => {
     const cliente = String(req.body.cliente || '');
     const status = sanitizeText(req.body.status);
     const componentes = normalizeComponentIds(req.body.componentes);
+    const componentesUsados = normalizeComponentUsage(req.body.componentes, req.body);
     const manutencaoAtual = await Manutencao.findById(req.params.id).lean();
 
     if (!manutencaoAtual) return res.status(404).send('Manutenção não encontrada');
@@ -272,11 +331,12 @@ export const update = async (req, res) => {
       diagnosticoTecnico: sanitizeText(req.body.diagnosticoTecnico),
       status,
       componentes,
+      componentesUsados,
       valorTotal: parsePositiveNumber(req.body.valorTotal),
       observacoes: sanitizeText(req.body.observacoes)
     };
 
-    if (!isValidObjectId(update.cliente) || !update.marcaComputador || !update.modeloComputador || !update.descricaoProblema || !VALID_STATUSES.includes(status) || !componentes.every(isValidObjectId)) {
+    if (!isValidObjectId(update.cliente) || !update.marcaComputador || !update.modeloComputador || !update.descricaoProblema || !VALID_STATUSES.includes(status) || !componentes.every(isValidObjectId) || componentesUsados.some(item => item.quantidade < 1)) {
       return renderMaintenanceForm(
         res,
         400,
@@ -300,15 +360,15 @@ export const update = async (req, res) => {
       return renderMaintenanceForm(res, 400, { ...manutencaoAtual, ...update, _id: req.params.id }, 'O cliente selecionado não existe mais.');
     }
 
-    const stockDiff = getComponentDiff(manutencaoAtual.componentes, componentes);
-    await reserveComponents(stockDiff.added);
+    const previousUsage = getStoredComponentUsage(manutencaoAtual);
+    const stockDiff = getUsageStockDiff(previousUsage, componentesUsados);
+    await adjustStockForUsageDiff(stockDiff);
     try {
       await Manutencao.findByIdAndUpdate(req.params.id, Object.keys(unset).length ? { $set: update, $unset: unset } : { $set: update }, { runValidators: true });
     } catch (error) {
-      await releaseComponents(stockDiff.added);
+      await adjustStockForUsageDiff(stockDiff.map(item => ({ ...item, quantidade: -item.quantidade })));
       throw error;
     }
-    await releaseComponents(stockDiff.removed);
     setFlash(req, 'success', 'Ordem de serviço atualizada.');
     return res.redirect('/manutencoes');
   } catch (err) {
@@ -330,7 +390,7 @@ export const remove = async (req, res) => {
     const manutencao = await Manutencao.findById(req.params.id).lean();
 
     if (manutencao) {
-      await releaseComponents(normalizeComponentIds(manutencao.componentes || []));
+      await releaseComponentUsage(getStoredComponentUsage(manutencao));
       await Manutencao.findByIdAndDelete(req.params.id);
       setFlash(req, 'success', 'Ordem de serviço excluída e componentes devolvidos ao estoque.');
     }

@@ -1,107 +1,341 @@
 <%- include('../partials/header', { title: 'Detalhes da manutenção | AssistTech' }) %>
 
-<div class="container">
-  <%- include('../partials/flash') %>
-  <% const statusMap = { em_analise: ['status-analysis', 'Em análise'], em_reparo: ['status-repair', 'Em reparo'], concluido: ['status-done', 'Concluído'] }; %>
-  <% const statusInfo = statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status']; %>
+  <div class="container">
+    <%- include('../partials/flash') %>
+      <% const statusMap={ em_analise: ['status-analysis', 'Em análise' ], em_reparo: ['status-repair', 'Em reparo' ],
+        concluido: ['status-done', 'Concluído' ] }; %>
+        <% const statusInfo=statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status' ]; %>
+          <% const componentesExibidos=(manutencao.componentesUsados && manutencao.componentesUsados.length) ?
+            manutencao.componentesUsados : (manutencao.componentes || []).map(function(componente) { return {
+            componente: componente, quantidade: 1 }; }); %>
 
-  <div class="d-flex flex-column flex-md-row justify-content-between gap-3 page-heading">
-    <div>
-      <div class="page-eyebrow">Ordem de serviço</div>
-      <h1 class="page-title"><%= manutencao.numeroOrdem || 'Detalhes da manutenção' %></h1>
-      <p class="page-subtitle"><%= manutencao.marcaComputador || '-' %> <%= manutencao.modeloComputador || '' %> para <%= manutencao.cliente?.nome || 'cliente removido' %>.</p>
-    </div>
-    <div class="d-flex gap-2 align-items-start page-actions">
-      <a href="/manutencoes" class="btn btn-outline-secondary">Voltar</a>
-      <button type="button" class="btn btn-outline-primary" onclick="window.print()">Imprimir</button>
-      <a href="/manutencoes/<%= manutencao._id %>/editar" class="btn btn-primary">Editar</a>
-    </div>
+            <div class="d-flex flex-column flex-md-row justify-content-between gap-3 page-heading">
+              <div>
+                <div class="page-eyebrow">Ordem de serviço</div>
+                <h1 class="page-title">
+                  <%= manutencao.numeroOrdem || 'Detalhes da manutenção' %>
+                </h1>
+                <p class="page-subtitle">
+                  <%= manutencao.marcaComputador || '-' %>
+                    <%= manutencao.modeloComputador || '' %> para <%= manutencao.cliente?.nome || 'cliente removido' %>.
+                </p>
+              </div>
+              <div class="d-flex gap-2 align-items-start page-actions">
+                <a href="/manutencoes" class="btn btn-outline-secondary">Voltar</a>
+                <button type="button" class="btn btn-outline-primary" data-print-os="company">Imprimir cópia da
+                  empresa</button>
+                <button type="button" class="btn btn-outline-secondary" data-print-os="customer">Imprimir cópia do
+                  cliente</button>
+                <a href="/manutencoes/<%= manutencao._id %>/editar" class="btn btn-primary">Editar</a>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-lg-8">
+                <section class="content-card form-card mb-3">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <div class="info-label">Cliente</div>
+                      <div class="info-value">
+                        <%= manutencao.cliente?.nome || 'Não informado' %>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="info-label">Status</div>
+                      <div class="info-value"><span class="status-badge <%= statusInfo[0] %>">
+                          <%= statusInfo[1] %>
+                        </span></div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="info-label">Entrada</div>
+                      <div class="info-value">
+                        <%= manutencao.dataEntrada ? new Date(manutencao.dataEntrada).toLocaleDateString('pt-BR') : '-'
+                          %>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="info-label">Saída</div>
+                      <div class="info-value">
+                        <%= manutencao.dataSaida ? new Date(manutencao.dataSaida).toLocaleDateString('pt-BR') : '-' %>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="content-card form-card mb-3">
+                  <h2 class="h5 mb-3">Problema relatado</h2>
+                  <p class="mb-0">
+                    <%= manutencao.descricaoProblema || 'Nenhuma descrição informada.' %>
+                  </p>
+                </section>
+
+                <section class="content-card form-card mb-3">
+                  <h2 class="h5 mb-3">Diagnóstico técnico</h2>
+                  <p class="mb-0">
+                    <%= manutencao.diagnosticoTecnico || 'Diagnóstico ainda não informado.' %>
+                  </p>
+                </section>
+
+                <section class="content-card form-card">
+                  <h2 class="h5 mb-3">Observações</h2>
+                  <p class="mb-0">
+                    <%= manutencao.observacoes || 'Nenhuma observação registrada.' %>
+                  </p>
+                </section>
+              </div>
+
+              <div class="col-lg-4">
+                <section class="content-card form-card mb-3">
+                  <h2 class="h5 mb-3">Componentes</h2>
+                  <% if (componentesExibidos.length) { %>
+                    <ul class="list-group list-group-flush">
+                      <% componentesExibidos.forEach(function(uso) { %>
+                        <% const componente=uso.componente || {}; %>
+                          <li class="list-group-item px-0 d-flex justify-content-between gap-2">
+                            <span>
+                              <%= Number(uso.quantidade || 1) %>x <%= componente.nome || 'Componente removido' %>
+                            </span>
+                            <span class="text-secondary">
+                              <%= componente.categoria || '-' %>
+                            </span>
+                          </li>
+                          <% }) %>
+                    </ul>
+                    <% } else { %>
+                      <p class="text-secondary mb-0">Nenhum componente vinculado.</p>
+                      <% } %>
+                </section>
+
+                <section class="content-card form-card">
+                  <div class="info-label">Valor total</div>
+                  <div class="metric-value">R$ <%= Number(manutencao.valorTotal || 0).toFixed(2) %>
+                  </div>
+                </section>
+
+                <section class="content-card form-card customer-message-card">
+                  <div class="page-eyebrow">Comunicação</div>
+                  <h2 class="h5 mb-2">Enviar atualização ao cliente</h2>
+                  <p class="text-secondary">A mensagem inclui o nome do cliente, o equipamento, a ordem de serviço e o
+                    status atual. Revise o texto antes de enviar.</p>
+                  <details class="customer-message-preview">
+                    <summary>Visualizar mensagem</summary>
+                    <p>
+                      <%= mensagemCliente %>
+                    </p>
+                  </details>
+                  <div class="customer-message-actions">
+                    <% if (whatsappUrl) { %>
+                      <a class="btn btn-success" href="<%= whatsappUrl %>" target="_blank"
+                        rel="noopener noreferrer">Abrir
+                        no WhatsApp</a>
+                      <% } else { %>
+                        <span class="form-text">Telefone inválido para criar uma mensagem no WhatsApp.</span>
+                        <% } %>
+                          <% if (gmailUrl) { %>
+                            <a class="btn btn-outline-primary" href="<%= gmailUrl %>" target="_blank"
+                              rel="noopener noreferrer">Abrir no Gmail</a>
+                            <% } else { %>
+                              <span class="form-text">Cliente sem e-mail cadastrado.</span>
+                              <% } %>
+                  </div>
+                </section>
+              </div>
+            </div>
   </div>
 
-  <div class="row g-3">
-    <div class="col-lg-8">
-      <section class="content-card form-card mb-3">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="info-label">Cliente</div>
-            <div class="info-value"><%= manutencao.cliente?.nome || 'Não informado' %></div>
-          </div>
-          <div class="col-md-6">
-            <div class="info-label">Status</div>
-            <div class="info-value"><span class="status-badge <%= statusInfo[0] %>"><%= statusInfo[1] %></span></div>
-          </div>
-          <div class="col-md-6">
-            <div class="info-label">Entrada</div>
-            <div class="info-value"><%= manutencao.dataEntrada ? new Date(manutencao.dataEntrada).toLocaleDateString('pt-BR') : '-' %></div>
-          </div>
-          <div class="col-md-6">
-            <div class="info-label">Saída</div>
-            <div class="info-value"><%= manutencao.dataSaida ? new Date(manutencao.dataSaida).toLocaleDateString('pt-BR') : '-' %></div>
-          </div>
-        </div>
-      </section>
+  <section class="print-document print-company" aria-hidden="true">
+    <header class="print-header">
+      <div>
+        <h1>AssistTech</h1>
+        <p>Via da empresa</p>
+      </div>
+      <div class="print-os-number">
+        <strong>ORDEM DE SERVIÇO</strong>
+        <span>
+          <%= manutencao.numeroOrdem || '-' %>
+        </span>
+      </div>
+    </header>
 
-      <section class="content-card form-card mb-3">
-        <h2 class="h5 mb-3">Problema relatado</h2>
-        <p class="mb-0"><%= manutencao.descricaoProblema || 'Nenhuma descrição informada.' %></p>
-      </section>
-
-      <section class="content-card form-card mb-3">
-        <h2 class="h5 mb-3">Diagnóstico técnico</h2>
-        <p class="mb-0"><%= manutencao.diagnosticoTecnico || 'Diagnóstico ainda não informado.' %></p>
-      </section>
-
-      <section class="content-card form-card">
-        <h2 class="h5 mb-3">Observações</h2>
-        <p class="mb-0"><%= manutencao.observacoes || 'Nenhuma observação registrada.' %></p>
-      </section>
+    <div class="print-grid">
+      <div><span>Cliente</span><strong>
+          <%= manutencao.cliente?.nome || 'Não informado' %>
+        </strong></div>
+      <div><span>CPF / CNPJ</span><strong>
+          <%= manutencao.cliente?.documento || '-' %>
+        </strong></div>
+      <div><span>Telefone</span><strong>
+          <%= manutencao.cliente?.telefone || '-' %>
+        </strong></div>
+      <div><span>E-mail</span><strong>
+          <%= manutencao.cliente?.email || '-' %>
+        </strong></div>
+      <div><span>Endereço</span><strong>
+          <%= [manutencao.cliente?.endereco, manutencao.cliente?.cidade, manutencao.cliente?.estado,
+            manutencao.cliente?.cep].filter(Boolean).join(', ') || ' -' %>
+        </strong></div>
+      <div><span>Status</span><strong>
+          <%= statusInfo[1] %>
+        </strong></div>
     </div>
 
-    <div class="col-lg-4">
-      <section class="content-card form-card mb-3">
-        <h2 class="h5 mb-3">Componentes</h2>
-        <% if (manutencao.componentes && manutencao.componentes.length) { %>
-          <ul class="list-group list-group-flush">
-            <% manutencao.componentes.forEach(function(componente) { %>
-              <li class="list-group-item px-0 d-flex justify-content-between gap-2">
-                <span><%= componente.nome || 'Componente removido' %></span>
-                <span class="text-secondary"><%= componente.categoria || '-' %></span>
-              </li>
-            <% }) %>
-          </ul>
+    <section class="print-section">
+      <h2>Equipamento</h2>
+      <p><strong>
+          <%= manutencao.marcaComputador || '-' %>
+            <%= manutencao.modeloComputador || '' %>
+        </strong></p>
+    </section>
+
+    <section class="print-section">
+      <h2>Problema relatado</h2>
+      <p>
+        <%= manutencao.descricaoProblema || 'Não informado.' %>
+      </p>
+    </section>
+
+    <section class="print-section">
+      <h2>Diagnóstico técnico</h2>
+      <p>
+        <%= manutencao.diagnosticoTecnico || 'Não informado.' %>
+      </p>
+    </section>
+
+    <section class="print-section">
+      <h2>Observações internas</h2>
+      <p>
+        <%= manutencao.observacoes || 'Nenhuma observação registrada.' %>
+      </p>
+    </section>
+
+    <section class="print-section">
+      <h2>Componentes utilizados</h2>
+      <% if (componentesExibidos.length) { %>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Componente</th>
+              <th>Categoria</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% componentesExibidos.forEach(function(uso) { %>
+              <% const componente=uso.componente || {}; %>
+                <tr>
+                  <td>
+                    <%= Number(uso.quantidade || 1) %>x <%= componente.nome || '-' %>
+                  </td>
+                  <td>
+                    <%= componente.categoria || '-' %>
+                  </td>
+                </tr>
+                <% }) %>
+          </tbody>
+        </table>
         <% } else { %>
-          <p class="text-secondary mb-0">Nenhum componente vinculado.</p>
-        <% } %>
-      </section>
-
-      <section class="content-card form-card">
-        <div class="info-label">Valor total</div>
-        <div class="metric-value">R$ <%= Number(manutencao.valorTotal || 0).toFixed(2) %></div>
-      </section>
-
-      <section class="content-card form-card customer-message-card">
-        <div class="page-eyebrow">Comunicação</div>
-        <h2 class="h5 mb-2">Enviar atualização ao cliente</h2>
-        <p class="text-secondary">A mensagem inclui o nome do cliente, o equipamento, a ordem de serviço e o status atual. Revise o texto antes de enviar.</p>
-        <details class="customer-message-preview">
-          <summary>Visualizar mensagem</summary>
-          <p><%= mensagemCliente %></p>
-        </details>
-        <div class="customer-message-actions">
-          <% if (whatsappUrl) { %>
-            <a class="btn btn-success" href="<%= whatsappUrl %>" target="_blank" rel="noopener noreferrer">Abrir no WhatsApp</a>
-          <% } else { %>
-            <span class="form-text">Telefone inválido para criar uma mensagem no WhatsApp.</span>
+          <p>Nenhum componente vinculado.</p>
           <% } %>
-          <% if (gmailUrl) { %>
-            <a class="btn btn-outline-primary" href="<%= gmailUrl %>" target="_blank" rel="noopener noreferrer">Abrir no Gmail</a>
-          <% } else { %>
-            <span class="form-text">Cliente sem e-mail cadastrado.</span>
-          <% } %>
-        </div>
-      </section>
+    </section>
+
+    <div class="print-grid print-grid-bottom">
+      <div><span>Entrada</span><strong>
+          <%= manutencao.dataEntrada ? new Date(manutencao.dataEntrada).toLocaleDateString('pt-BR') : '-' %>
+        </strong></div>
+      <div><span>Saída</span><strong>
+          <%= manutencao.dataSaida ? new Date(manutencao.dataSaida).toLocaleDateString('pt-BR') : '-' %>
+        </strong></div>
+      <div><span>Valor total</span><strong>R$ <%= Number(manutencao.valorTotal || 0).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong></div>
     </div>
-  </div>
-</div>
 
-<%- include('../partials/footer') %>
+    <div class="print-signatures">
+      <div><span>Responsável técnico</span></div>
+      <div><span>Cliente / responsável</span></div>
+    </div>
+  </section>
+
+  <section class="print-document print-customer" aria-hidden="true">
+    <header class="print-header">
+      <div>
+        <h1>AssistTech</h1>
+        <p>Comprovante para o cliente</p>
+      </div>
+      <div class="print-os-number">
+        <strong>ORDEM DE SERVIÇO</strong>
+        <span>
+          <%= manutencao.numeroOrdem || '-' %>
+        </span>
+      </div>
+    </header>
+
+    <div class="print-grid">
+      <div><span>Cliente</span><strong>
+          <%= manutencao.cliente?.nome || 'Não informado' %>
+        </strong></div>
+      <div><span>Status</span><strong>
+          <%= statusInfo[1] %>
+        </strong></div>
+    </div>
+
+    <section class="print-section">
+      <h2>Equipamento</h2>
+      <p><strong>
+          <%= manutencao.marcaComputador || '-' %>
+            <%= manutencao.modeloComputador || '' %>
+        </strong></p>
+    </section>
+
+    <section class="print-section">
+      <h2>Problema informado</h2>
+      <p>
+        <%= manutencao.descricaoProblema || 'Não informado.' %>
+      </p>
+    </section>
+
+    <section class="print-section">
+      <h2>Serviços / componentes</h2>
+      <% if (componentesExibidos.length) { %>
+        <ul class="print-list">
+          <% componentesExibidos.forEach(function(uso) { %>
+            <% const componente=uso.componente || {}; %>
+              <li>
+                <%= Number(uso.quantidade || 1) %>x <%= componente.nome || 'Componente utilizado' %>
+              </li>
+              <% }) %>
+        </ul>
+        <% } else { %>
+          <p>Nenhum componente informado.</p>
+          <% } %>
+    </section>
+
+    <div class="print-grid print-grid-bottom">
+      <div><span>Entrada</span><strong>
+          <%= manutencao.dataEntrada ? new Date(manutencao.dataEntrada).toLocaleDateString('pt-BR') : '-' %>
+        </strong></div>
+      <div><span>Saída</span><strong>
+          <%= manutencao.dataSaida ? new Date(manutencao.dataSaida).toLocaleDateString('pt-BR') : '-' %>
+        </strong></div>
+      <div><span>Valor total</span><strong>R$ <%= Number(manutencao.valorTotal || 0).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong></div>
+    </div>
+
+    <div class="print-signatures">
+      <div><span>Assistência técnica</span></div>
+      <div><span>Cliente / responsável</span></div>
+    </div>
+  </section>
+
+  <script>
+    document.querySelectorAll('[data-print-os]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        document.body.dataset.printMode = button.dataset.printOs;
+        window.print();
+      });
+    });
+
+    window.addEventListener('afterprint', function () {
+      delete document.body.dataset.printMode;
+    });
+  </script>
+
+  <%- include('../partials/footer') %>

@@ -5,7 +5,8 @@
       <section class="hero-panel page-heading">
         <div class="page-eyebrow">Painel operacional</div>
         <h1 class="page-title">Sistema de Assistência Técnica</h1>
-        <p class="page-subtitle">Controle clientes, ordens de manutenção e estoque de componentes em uma rotina simples para demonstração e uso real.</p>
+        <p class="page-subtitle">Controle clientes, ordens de manutenção e estoque de componentes em uma rotina simples
+          para demonstração e uso real.</p>
       </section>
 
       <section class="metric-grid mb-4" aria-label="Indicadores do sistema">
@@ -15,11 +16,36 @@
           </div>
           <div class="metric-label">Clientes cadastrados</div>
         </div>
-        <div class="metric-card"><div class="metric-value"><%= totalManutencoes || 0 %></div><div class="metric-label">Manutenções registradas</div></div>
-        <div class="metric-card"><div class="metric-value text-warning"><%= totalEmAnalise || 0 %></div><div class="metric-label">Em análise</div></div>
-        <div class="metric-card"><div class="metric-value text-info"><%= totalEmReparo || 0 %></div><div class="metric-label">Em reparo</div></div>
-        <div class="metric-card"><div class="metric-value text-success"><%= totalConcluidas || 0 %></div><div class="metric-label">Concluídas</div></div>
-        <div class="metric-card"><div class="metric-value"><%= totalComponentes || 0 %></div><div class="metric-label">Componentes no catálogo</div></div>
+        <div class="metric-card">
+          <div class="metric-value">
+            <%= totalManutencoes || 0 %>
+          </div>
+          <div class="metric-label">Ordens de serviço</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value text-warning">
+            <%= totalEmAnalise || 0 %>
+          </div>
+          <div class="metric-label">Em análise</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value text-info">
+            <%= totalEmReparo || 0 %>
+          </div>
+          <div class="metric-label">Em reparo</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value text-success">
+            <%= totalConcluidas || 0 %>
+          </div>
+          <div class="metric-label">Concluídas</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">
+            <%= totalComponentes || 0 %>
+          </div>
+          <div class="metric-label">Componentes no catálogo</div>
+        </div>
         <div class="metric-card">
           <div class="metric-value text-success">R$ <%= Number(faturamentoConcluido || 0).toLocaleString('pt-BR', {
               minimumFractionDigits: 2, maximumFractionDigits: 2 }) %>
@@ -29,9 +55,24 @@
       </section>
 
       <section class="action-grid mb-4">
-        <div class="action-card"><h3>Clientes</h3><p>Cadastro de pessoas atendidas, contatos e dados de localização.</p><div class="d-flex gap-2"><a class="btn btn-primary" href="/cliente">Listar</a><a class="btn btn-outline-primary" href="/cliente/novo">Novo</a></div></div>
-        <div class="action-card"><h3>Manutenções</h3><p>Abertura, acompanhamento e fechamento das ordens de serviço.</p><div class="d-flex gap-2"><a class="btn btn-primary" href="/manutencoes">Listar</a><a class="btn btn-outline-primary" href="/manutencoes/novo">Nova</a></div></div>
-        <div class="action-card"><h3>Componentes</h3><p>Controle de peças usadas nos reparos e consulta de estoque.</p><div class="d-flex gap-2"><a class="btn btn-primary" href="/componentes">Listar</a><a class="btn btn-outline-primary" href="/componentes/novo">Novo</a></div></div>
+        <div class="action-card">
+          <h3>Clientes</h3>
+          <p>Cadastro de pessoas atendidas, contatos e dados de localização.</p>
+          <div class="d-flex gap-2"><a class="btn btn-primary" href="/cliente">Listar</a><a
+              class="btn btn-outline-primary" href="/cliente/novo">Novo</a></div>
+        </div>
+        <div class="action-card">
+          <h3>Ordens de serviço</h3>
+          <p>Abrir OS, acompanhar reparos e registrar a conclusão.</p>
+          <div class="d-flex gap-2"><a class="btn btn-primary" href="/manutencoes">Ver OS</a><a
+              class="btn btn-outline-primary" href="/manutencoes/novo">Nova OS</a></div>
+        </div>
+        <div class="action-card">
+          <h3>Componentes</h3>
+          <p>Controle de peças usadas nos reparos e consulta de estoque.</p>
+          <div class="d-flex gap-2"><a class="btn btn-primary" href="/componentes">Listar</a><a
+              class="btn btn-outline-primary" href="/componentes/novo">Novo</a></div>
+        </div>
       </section>
 
       <% if (componentesBaixos && componentesBaixos.length> 0) { %>
@@ -64,7 +105,7 @@
 
           <section class="content-card">
             <div class="card-header d-flex justify-content-between align-items-center">
-              <span>Manutenções recentes</span>
+              <span>Ordens recentes</span>
               <a class="btn btn-sm btn-outline-primary" href="/manutencoes">Ver todas</a>
             </div>
             <% if (manutencoes && manutencoes.length> 0) { %>
@@ -113,7 +154,7 @@
                 </table>
               </div>
               <% } else { %>
-                <div class="empty-state">Nenhuma manutenção registrada ainda.</div>
+                <div class="empty-state">Nenhuma ordem de serviço registrada ainda.</div>
                 <% } %>
           </section>
   </div>

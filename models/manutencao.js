@@ -18,6 +18,10 @@ const ManutencaoSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Componente' 
   }],
+  componentesUsados: [{
+    componente: { type: mongoose.Schema.Types.ObjectId, ref: 'Componente', required: true },
+    quantidade: { type: Number, required: true, min: 1, default: 1 }
+  }],
   valorTotal: { type: Number, default: 0, min: 0 },
   observacoes: { type: String, trim: true }
 }, { timestamps: true });
