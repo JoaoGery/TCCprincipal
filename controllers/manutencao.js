@@ -102,12 +102,16 @@ const hasQuoteChanged = (previous = {}, items = [], labor = 0, customerDetails =
 const getApprovalTokenHash = token => createHash('sha256').update(token).digest('hex');
 
 const getPublicBaseUrl = req => {
-  const configuredUrl = process.env.PUBLIC_BASE_URL;
-  if (!configuredUrl && process.env.NODE_ENV === 'production') {
-    throw new Error('Configure PUBLIC_BASE_URL para gerar links de aprovação em produção.');
+  const configuredUrl = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
+  const placeholderPattern = /^(?:https?:\/\/)?(?:url-real-do-servico|seu-dominio\.example)(?:\.onrender\.com)?(?:\/.*)?$/i;
+
+  let baseUrl;
+  if (configuredUrl && !placeholderPattern.test(configuredUrl)) {
+    baseUrl = configuredUrl;
+  } else {
+    baseUrl = `${req.protocol}://${req.get('host')}`;
   }
 
-  const baseUrl = (configuredUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   const parsedUrl = new URL(baseUrl);
   if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
     throw new Error('PUBLIC_BASE_URL precisa usar HTTP ou HTTPS.');
