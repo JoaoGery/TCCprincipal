@@ -103,7 +103,7 @@ const getApprovalTokenHash = token => createHash('sha256').update(token).digest(
 
 const getPublicBaseUrl = req => {
   const configuredUrl = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
-  const placeholderPattern = /^(?:https?:\/\/)?(?:url-real-do-servico|seu-dominio\.example)(?:\.onrender\.com)?(?:\/.*)?$/i;
+  const placeholderPattern = /^(?:https?:\/\/)?(?:url-real-do-servico|nome-real|seu-servico|seu-dominio\.example)(?:\.onrender\.com)?(?:\/.*)?$/i;
 
   let baseUrl;
   if (configuredUrl && !placeholderPattern.test(configuredUrl)) {
