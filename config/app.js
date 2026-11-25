@@ -11,6 +11,7 @@ import authRouter from '../routes/auth.js';
 import manutencaoRouter from '../routes/manutencaoRoutes.js';
 import componenteRouter from '../routes/componenteRoutes.js';
 import routeRouter from '../routes/route.js';
+import * as manutencaoController from '../controllers/manutencao.js';
 
 dotenv.config();
 
@@ -95,6 +96,10 @@ export const createApp = async () => {
   app.use('/auth', authRouter);
   app.use('/cliente', clienteRouter);
   app.use('/clientes', clienteRouter);
+  app.get('/orcamentos/:token', manutencaoController.publicQuote);
+  app.post('/orcamentos/:token/decisao', manutencaoController.decidePublicQuote);
+  app.get('/manutencoes/orcamento/:token', manutencaoController.publicQuote);
+  app.post('/manutencoes/orcamento/:token/decisao', manutencaoController.decidePublicQuote);
   app.use('/manutencoes', manutencaoRouter);
   app.use('/componentes', componenteRouter);
   app.use('/', routeRouter);

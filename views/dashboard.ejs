@@ -29,6 +29,12 @@
           <div class="metric-label">Em análise</div>
         </div>
         <div class="metric-card">
+          <div class="metric-value text-warning">
+            <%= totalAguardandoAprovacao || 0 %>
+          </div>
+          <div class="metric-label">Aguardando aprovação</div>
+        </div>
+        <div class="metric-card">
           <div class="metric-value text-info">
             <%= totalEmReparo || 0 %>
           </div>
@@ -123,8 +129,11 @@
                   </thead>
                   <tbody>
                     <% manutencoes.forEach(function(manutencao) { %>
-                      <% const statusMap={ em_analise: ['status-analysis', 'Em análise' ], em_reparo:
-                        ['status-repair', 'Em reparo' ], concluido: ['status-done', 'Concluído' ] }; %>
+                      <% const statusMap={ em_analise: ['status-analysis', 'Em análise' ], aguardando_aprovacao:
+                        ['status-analysis', 'Aguardando aprovação' ], orcamento_aprovado:
+                        ['status-done', 'Orçamento aprovado' ], orcamento_recusado:
+                        ['status-rejected', 'Orçamento recusado' ], em_reparo: ['status-repair', 'Em reparo' ],
+                        concluido: ['status-done', 'Concluído' ] }; %>
                         <% const statusInfo=statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status' ];
                           %>
                           <tr>

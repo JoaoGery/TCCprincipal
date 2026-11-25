@@ -4,10 +4,14 @@ import Cliente from '../models/cliente.js';
 import Contador from '../models/contador.js';
 import { isValidObjectId, parsePositiveNumber, sanitizeText } from '../utils/validators.js';
 import { setFlash } from '../utils/flash.js';
+import { createHash, randomBytes } from 'crypto';
 
-const VALID_STATUSES = ['em_analise', 'em_reparo', 'concluido'];
+const VALID_STATUSES = ['em_analise', 'aguardando_aprovacao', 'orcamento_aprovado', 'orcamento_recusado', 'em_reparo', 'concluido'];
 const STATUS_LABELS = {
   em_analise: 'Em análise',
+  aguardando_aprovacao: 'Aguardando aprovação',
+  orcamento_aprovado: 'Orçamento aprovado',
+  orcamento_recusado: 'Orçamento recusado',
   em_reparo: 'Em reparo',
   concluido: 'Concluído'
 };
@@ -38,12 +42,86 @@ const normalizeComponentUsage = (ids = [], body = {}) => {
   });
 };
 
+const getQuoteItems = async (componentIds = [], body = {}) => {
+  if (!componentIds.every(isValidObjectId)) {
+    throw stockError('Um dos componentes selecionados não é válido. Atualize a página e tente novamente.');
+  }
+  const usage = normalizeComponentUsage(componentIds, body);
+  if (usage.some(item => item.quantidade < 1)) {
+    throw stockError('Informe uma quantidade válida para cada componente do orçamento.');
+  }
+
+  if (!usage.length) return [];
+
+  const components = await Componente.find({ _id: { $in: usage.map(item => item.componente) } }).lean();
+  const byId = new Map(components.map(component => [String(component._id), component]));
+
+  return usage.map(item => {
+    const component = byId.get(item.componente);
+    if (!component) throw stockError('Um dos componentes selecionados não foi encontrado. Atualize a página e tente novamente.');
+    const rawPrice = body?.[`preco-${item.componente}`];
+    const valorUnitario = rawPrice === undefined ? Number(component.precoUnitario || 0) : Number(rawPrice);
+    const descricao = sanitizeText(body?.[`descricaoComponente-${item.componente}`], component.nome);
+    if (!Number.isFinite(valorUnitario) || valorUnitario < 0) {
+      throw stockError(`Informe um preço válido para ${component.nome}.`);
+    }
+    return {
+      componente: component._id,
+      descricao: descricao || component.nome,
+      quantidade: item.quantidade,
+      valorUnitario
+    };
+  });
+};
+
+const getQuoteTotal = (items = [], labor = 0) => items.reduce(
+  (total, item) => total + Number(item.quantidade || 0) * Number(item.valorUnitario || 0),
+  Number(labor || 0)
+).toFixed(2) * 1;
+
+const hasQuoteChanged = (previous = {}, items = [], labor = 0, customerDetails = {}) => {
+  const previousItems = (previous.itensOrcamento || []).map(item => ({
+    componente: String(item.componente?._id || item.componente),
+    descricao: String(item.descricao || ''),
+    quantidade: Number(item.quantidade || 0),
+    valorUnitario: Number(item.valorUnitario || 0)
+  }));
+  const nextItems = items.map(item => ({
+    componente: String(item.componente),
+    descricao: String(item.descricao || ''),
+    quantidade: Number(item.quantidade || 0),
+    valorUnitario: Number(item.valorUnitario || 0)
+  }));
+  return JSON.stringify(previousItems) !== JSON.stringify(nextItems)
+    || Number(previous.valorMaoDeObra || 0) !== Number(labor || 0)
+    || ['marcaComputador', 'modeloComputador', 'descricaoProblema'].some(field =>
+      String(previous[field] || '') !== String(customerDetails[field] || '')
+    );
+};
+
+const getApprovalTokenHash = token => createHash('sha256').update(token).digest('hex');
+
+const getPublicBaseUrl = req => {
+  const configuredUrl = process.env.PUBLIC_BASE_URL;
+  if (!configuredUrl && process.env.NODE_ENV === 'production') {
+    throw new Error('Configure PUBLIC_BASE_URL para gerar links de aprovação em produção.');
+  }
+
+  const baseUrl = (configuredUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const parsedUrl = new URL(baseUrl);
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new Error('PUBLIC_BASE_URL precisa usar HTTP ou HTTPS.');
+  }
+  return parsedUrl.origin;
+};
+
 const getStoredComponentUsage = (manutencao = {}) => {
-  if (Array.isArray(manutencao.componentesUsados) && manutencao.componentesUsados.length) {
-    return manutencao.componentesUsados.map(item => ({
+  if (Array.isArray(manutencao.componentesUsados)) {
+    const stored = manutencao.componentesUsados.map(item => ({
       componente: String(item.componente?._id || item.componente),
       quantidade: Math.max(1, Math.floor(Number(item.quantidade || 1)))
     })).filter(item => item.componente && item.componente !== 'undefined');
+    if (stored.length || manutencao.estoqueBaixado === false) return stored;
   }
 
   return normalizeComponentIds(manutencao.componentes || []).map(id => ({ componente: id, quantidade: 1 }));
@@ -106,19 +184,21 @@ const releaseComponentUsage = async (usage = []) => {
 
 const adjustStockForUsageDiff = async (differences = []) => {
   const reserved = [];
+  const additions = differences.filter(item => item.quantidade > 0);
+  const returns = differences.filter(item => item.quantidade < 0);
 
   try {
-    for (const difference of differences) {
-      if (difference.quantidade > 0) {
-        await reserveComponentUsage([{ componente: difference.componente, quantidade: difference.quantidade }]);
-        reserved.push({ componente: difference.componente, quantidade: difference.quantidade });
-      } else {
-        await releaseComponentUsage([{ componente: difference.componente, quantidade: Math.abs(difference.quantidade) }]);
-      }
+    for (const item of additions) {
+      await reserveComponentUsage([{ componente: item.componente, quantidade: item.quantidade }]);
+      reserved.push(item);
     }
   } catch (error) {
     await releaseComponentUsage(reserved);
     throw error;
+  }
+
+  for (const item of returns) {
+    await releaseComponentUsage([{ componente: item.componente, quantidade: Math.abs(item.quantidade) }]);
   }
 
   return reserved;
@@ -166,7 +246,7 @@ export const list = async (req, res) => {
     const q = sanitizeText(req.query.q);
     const filtro = {};
 
-    if (['em_analise', 'em_reparo', 'concluido'].includes(status)) {
+    if (VALID_STATUSES.includes(status)) {
       filtro.status = status;
     }
 
@@ -198,8 +278,25 @@ export const list = async (req, res) => {
 
 export const view = async (req, res) => {
   try {
-    const manutencao = await Manutencao.findById(req.params.id).populate('cliente componentes componentesUsados.componente').lean();
+    const manutencao = await Manutencao.findById(req.params.id)
+      .select('+tokenAprovacaoHash +codigoAprovacao')
+      .populate('cliente componentes componentesUsados.componente itensOrcamento.componente')
+      .lean();
     if (!manutencao) return res.status(404).send('Manutenção não encontrada');
+    const shareToken = manutencao.codigoAprovacao
+      && manutencao.status === 'aguardando_aprovacao'
+      && manutencao.tokenAprovacaoExpiraEm > new Date()
+      && getApprovalTokenHash(manutencao.codigoAprovacao) === manutencao.tokenAprovacaoHash
+      ? manutencao.codigoAprovacao
+      : null;
+    delete manutencao.tokenAprovacaoHash;
+    delete manutencao.codigoAprovacao;
+    const approvalUrl = shareToken
+      ? `${getPublicBaseUrl(req)}/orcamentos/${shareToken}`
+      : null;
+    const quoteMessage = approvalUrl
+      ? `Olá, ${manutencao.cliente?.nome || 'cliente'}! O orçamento da OS ${manutencao.numeroOrdem} está pronto. Consulte os serviços, valores e aprove ou recuse neste link: ${approvalUrl}`
+      : null;
     const mensagemCliente = buildCustomerMessage(manutencao);
     const whatsappNumber = getWhatsAppNumber(manutencao.cliente?.telefone);
     const whatsappUrl = whatsappNumber
@@ -214,10 +311,146 @@ export const view = async (req, res) => {
           body: mensagemCliente
         })}`
       : null;
-    res.render('manutencao/view', { manutencao, mensagemCliente, whatsappUrl, gmailUrl });
+    const quoteWhatsappUrl = whatsappNumber && quoteMessage
+      ? `https://wa.me/${whatsappNumber}?${new URLSearchParams({ text: quoteMessage })}`
+      : null;
+    const quoteGmailUrl = manutencao.cliente?.email && quoteMessage
+      ? `https://mail.google.com/mail/?${new URLSearchParams({
+          view: 'cm', fs: '1', to: manutencao.cliente.email,
+          su: `Orçamento da OS ${manutencao.numeroOrdem || ''}`.trim(), body: quoteMessage
+        })}`
+      : null;
+    res.render('manutencao/view', {
+      manutencao, mensagemCliente, whatsappUrl, gmailUrl,
+      approvalUrl, quoteWhatsappUrl, quoteGmailUrl
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send('Erro ao buscar manutenção');
+  }
+};
+
+export const generateApprovalLink = async (req, res) => {
+  try {
+    const baseUrl = getPublicBaseUrl(req);
+    const manutencao = await Manutencao.findById(req.params.id).populate('cliente').lean();
+    if (!manutencao) return res.status(404).send('Ordem de serviço não encontrada.');
+    if (['em_reparo', 'concluido'].includes(manutencao.status)) {
+      setFlash(req, 'error', 'O orçamento não pode ser reenviado depois que o reparo começou.');
+      return res.redirect(`/manutencoes/${manutencao._id}`);
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const tokenAprovacaoHash = getApprovalTokenHash(token);
+    const tokenAprovacaoExpiraEm = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const itensOrcamento = manutencao.itensOrcamento || [];
+    const valorMaoDeObra = !itensOrcamento.length && Number(manutencao.valorTotal || 0) > Number(manutencao.valorMaoDeObra || 0)
+      ? Number(manutencao.valorTotal)
+      : Number(manutencao.valorMaoDeObra || 0);
+    const valorTotal = itensOrcamento.length
+      ? getQuoteTotal(itensOrcamento, valorMaoDeObra)
+      : Number(manutencao.valorTotal || valorMaoDeObra);
+
+    await Manutencao.updateOne({ _id: manutencao._id }, {
+      $set: {
+        status: 'aguardando_aprovacao',
+        valorMaoDeObra,
+        valorTotal,
+        tokenAprovacaoHash,
+        codigoAprovacao: token,
+        tokenAprovacaoExpiraEm,
+        aprovadoEm: null,
+        recusadoEm: null
+      }
+    });
+
+    setFlash(req, 'success', 'Link do orçamento criado. Envie-o ao cliente pelo WhatsApp ou Gmail. O link expira em 7 dias.');
+    return res.redirect(`/manutencoes/${manutencao._id}`);
+  } catch (err) {
+    console.error(err);
+    if (err.message?.includes('PUBLIC_BASE_URL')) {
+      setFlash(req, 'warning', err.message);
+      return res.redirect(`/manutencoes/${req.params.id}`);
+    }
+    res.status(500).send('Não foi possível gerar o link do orçamento.');
+  }
+};
+
+export const publicQuote = async (req, res) => {
+  const token = String(req.params.token || '');
+  if (!/^[a-f0-9]{64}$/i.test(token)) {
+    return res.status(404).render('error', {
+      statusCode: 404,
+      title: 'Link inválido',
+      message: 'Este link de orçamento não é válido.'
+    });
+  }
+
+  try {
+    const tokenHash = getApprovalTokenHash(token);
+    const manutencao = await Manutencao.findOne({
+      $or: [
+        { codigoAprovacao: token, tokenAprovacaoHash: tokenHash },
+        { tokenAprovacaoHash: tokenHash }
+      ]
+    })
+      .populate('cliente itensOrcamento.componente')
+      .lean();
+    if (!manutencao) {
+      return res.status(404).render('error', {
+        statusCode: 404,
+        title: 'Link não encontrado',
+        message: 'O link do orçamento não existe ou foi substituído por outro.'
+      });
+    }
+
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    const expirado = !manutencao.tokenAprovacaoExpiraEm || manutencao.tokenAprovacaoExpiraEm < new Date();
+    res.render('manutencao/orcamento-publico', { manutencao, expirado, token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Não foi possível abrir o orçamento.');
+  }
+};
+
+export const decidePublicQuote = async (req, res) => {
+  const token = String(req.params.token || '');
+  const decision = sanitizeText(req.body.decisao);
+  if (!/^[a-f0-9]{64}$/i.test(token) || !['aprovar', 'recusar'].includes(decision)) {
+    return res.status(400).send('Solicitação de aprovação inválida.');
+  }
+
+  try {
+    const tokenAprovacaoHash = getApprovalTokenHash(token);
+    const manutencao = await Manutencao.findOne({
+      $or: [
+        { codigoAprovacao: token, tokenAprovacaoHash },
+        { tokenAprovacaoHash }
+      ],
+      status: 'aguardando_aprovacao',
+      tokenAprovacaoExpiraEm: { $gt: new Date() }
+    }).select('_id').lean();
+
+    if (!manutencao) return res.redirect(`/orcamentos/${token}`);
+
+    const aprovado = decision === 'aprovar';
+    await Manutencao.updateOne({
+      _id: manutencao._id,
+      tokenAprovacaoHash,
+      status: 'aguardando_aprovacao',
+      tokenAprovacaoExpiraEm: { $gt: new Date() }
+    }, {
+      $set: {
+        status: aprovado ? 'orcamento_aprovado' : 'orcamento_recusado',
+        aprovadoEm: aprovado ? new Date() : null,
+        recusadoEm: aprovado ? null : new Date()
+      }
+    });
+    return res.redirect(`/orcamentos/${token}`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Não foi possível registrar a decisão.');
   }
 };
 
@@ -241,31 +474,39 @@ export const create = async (req, res) => {
     const modeloComputador = sanitizeText(req.body.modeloComputador);
     const descricaoProblema = sanitizeText(req.body.descricaoProblema);
     const componentes = normalizeComponentIds(req.body.componentes);
-    const componentesUsados = normalizeComponentUsage(req.body.componentes, req.body);
+    const itensOrcamento = await getQuoteItems(componentes, req.body);
+    const valorMaoDeObra = parsePositiveNumber(req.body.valorMaoDeObra);
+    const valorTotal = getQuoteTotal(itensOrcamento, valorMaoDeObra);
 
-    if (!isValidObjectId(clienteId) || !marcaComputador || !modeloComputador || !descricaoProblema || !componentes.every(isValidObjectId) || componentesUsados.some(item => item.quantidade < 1)) {
+    if (!isValidObjectId(clienteId) || !marcaComputador || !modeloComputador || !descricaoProblema || !componentes.every(isValidObjectId)) {
       return renderMaintenanceForm(
         res,
         400,
-        { cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes },
+        { cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes, itensOrcamento, valorMaoDeObra, valorTotal },
         'Selecione um cliente e informe os dados do equipamento e do problema.'
       );
     }
 
     const cliente = await Cliente.exists({ _id: clienteId });
     if (!cliente) {
-      return renderMaintenanceForm(res, 400, { cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes }, 'O cliente selecionado não existe mais.');
+      return renderMaintenanceForm(res, 400, { cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes, itensOrcamento, valorMaoDeObra, valorTotal }, 'O cliente selecionado não existe mais.');
     }
 
-    await reserveComponentUsage(componentesUsados);
-    let manutencaoCriada;
-    try {
-      const numeroOrdem = await nextServiceOrder();
-      manutencaoCriada = await Manutencao.create({ numeroOrdem, cliente: clienteId, marcaComputador, modeloComputador, descricaoProblema, componentes, componentesUsados, status: 'em_analise' });
-    } catch (error) {
-      await releaseComponentUsage(componentesUsados);
-      throw error;
-    }
+    const numeroOrdem = await nextServiceOrder();
+    const manutencaoCriada = await Manutencao.create({
+      numeroOrdem,
+      cliente: clienteId,
+      marcaComputador,
+      modeloComputador,
+      descricaoProblema,
+      componentes,
+      itensOrcamento,
+      componentesUsados: [],
+      valorMaoDeObra,
+      valorTotal,
+      estoqueBaixado: false,
+      status: 'em_analise'
+    });
 
     const prepararEnvio = req.body.prepararEnvio === 'on';
     setFlash(
@@ -276,7 +517,7 @@ export const create = async (req, res) => {
         : 'Ordem de serviço aberta com sucesso.'
     );
     if (prepararEnvio) return res.redirect(`/manutencoes/${manutencaoCriada._id}`);
-    return res.redirect('/manutencoes');
+    return res.redirect(`/manutencoes/${manutencaoCriada._id}`);
   } catch (err) {
     console.error(err);
     if (err.name === 'StockError') {
@@ -288,7 +529,14 @@ export const create = async (req, res) => {
           marcaComputador: req.body.marcaComputador,
           modeloComputador: req.body.modeloComputador,
           descricaoProblema: req.body.descricaoProblema,
-          componentes: normalizeComponentIds(req.body.componentes)
+          componentes: normalizeComponentIds(req.body.componentes),
+          itensOrcamento: normalizeComponentUsage(req.body.componentes, req.body).map(item => ({
+            componente: item.componente,
+            quantidade: item.quantidade,
+            valorUnitario: Number(req.body[`preco-${item.componente}`] ?? 0),
+            descricao: sanitizeText(req.body[`descricaoComponente-${item.componente}`])
+          })),
+          valorMaoDeObra: parsePositiveNumber(req.body.valorMaoDeObra)
         },
         err.message
       );
@@ -318,7 +566,9 @@ export const update = async (req, res) => {
     const cliente = String(req.body.cliente || '');
     const status = sanitizeText(req.body.status);
     const componentes = normalizeComponentIds(req.body.componentes);
-    const componentesUsados = normalizeComponentUsage(req.body.componentes, req.body);
+    const itensOrcamento = await getQuoteItems(componentes, req.body);
+    const valorMaoDeObra = parsePositiveNumber(req.body.valorMaoDeObra);
+    const valorTotal = getQuoteTotal(itensOrcamento, valorMaoDeObra);
     const manutencaoAtual = await Manutencao.findById(req.params.id).lean();
 
     if (!manutencaoAtual) return res.status(404).send('Manutenção não encontrada');
@@ -331,12 +581,14 @@ export const update = async (req, res) => {
       diagnosticoTecnico: sanitizeText(req.body.diagnosticoTecnico),
       status,
       componentes,
-      componentesUsados,
-      valorTotal: parsePositiveNumber(req.body.valorTotal),
+      itensOrcamento,
+      valorMaoDeObra,
+      valorTotal,
       observacoes: sanitizeText(req.body.observacoes)
     };
+    const quoteChanged = hasQuoteChanged(manutencaoAtual, itensOrcamento, valorMaoDeObra, update);
 
-    if (!isValidObjectId(update.cliente) || !update.marcaComputador || !update.modeloComputador || !update.descricaoProblema || !VALID_STATUSES.includes(status) || !componentes.every(isValidObjectId) || componentesUsados.some(item => item.quantidade < 1)) {
+    if (!isValidObjectId(update.cliente) || !update.marcaComputador || !update.modeloComputador || !update.descricaoProblema || !VALID_STATUSES.includes(status) || !componentes.every(isValidObjectId)) {
       return renderMaintenanceForm(
         res,
         400,
@@ -360,24 +612,71 @@ export const update = async (req, res) => {
       return renderMaintenanceForm(res, 400, { ...manutencaoAtual, ...update, _id: req.params.id }, 'O cliente selecionado não existe mais.');
     }
 
+    const isRepairStarted = manutencaoAtual.status === 'em_reparo' || manutencaoAtual.status === 'concluido';
+    if (status === 'em_reparo' && manutencaoAtual.status !== 'em_reparo' && manutencaoAtual.status !== 'orcamento_aprovado') {
+      return renderMaintenanceForm(res, 400, { ...manutencaoAtual, ...update, _id: req.params.id }, 'O cliente precisa aprovar o orçamento antes de iniciar o reparo.');
+    }
+    if (isRepairStarted && !['em_reparo', 'concluido'].includes(status)) {
+      return renderMaintenanceForm(res, 400, { ...manutencaoAtual, ...update, _id: req.params.id }, 'Uma OS com reparo iniciado não pode voltar para aprovação ou análise.');
+    }
+    if (status === 'concluido' && !['em_reparo', 'concluido'].includes(manutencaoAtual.status)) {
+      return renderMaintenanceForm(res, 400, { ...manutencaoAtual, ...update, _id: req.params.id }, 'Inicie o reparo após a aprovação antes de concluir a OS.');
+    }
+    if (['aguardando_aprovacao', 'orcamento_aprovado', 'orcamento_recusado'].includes(status) && status !== manutencaoAtual.status) {
+      return renderMaintenanceForm(res, 400, { ...manutencaoAtual, ...update, _id: req.params.id }, 'A situação da aprovação é atualizada pelo fluxo do orçamento.');
+    }
+
     const previousUsage = getStoredComponentUsage(manutencaoAtual);
-    const stockDiff = getUsageStockDiff(previousUsage, componentesUsados);
-    await adjustStockForUsageDiff(stockDiff);
+    const nextUsage = itensOrcamento.map(item => ({ componente: String(item.componente), quantidade: item.quantidade }));
+    const shouldDeductStock = status === 'em_reparo' || status === 'concluido';
+    const legacyStockWasDeducted = manutencaoAtual.estoqueBaixado === undefined;
+    const stockWasDeducted = manutencaoAtual.estoqueBaixado === true || legacyStockWasDeducted;
+    const stockDiff = shouldDeductStock && stockWasDeducted
+      ? getUsageStockDiff(previousUsage, nextUsage)
+      : shouldDeductStock
+        ? nextUsage
+        : [];
+
+    if (stockDiff.length) await adjustStockForUsageDiff(stockDiff);
+    update.componentesUsados = shouldDeductStock
+      ? nextUsage.map(item => ({ componente: item.componente, quantidade: item.quantidade }))
+      : manutencaoAtual.componentesUsados || [];
+    update.estoqueBaixado = shouldDeductStock || stockWasDeducted;
+    const invalidatesApproval = quoteChanged && ['aguardando_aprovacao', 'orcamento_aprovado', 'orcamento_recusado'].includes(manutencaoAtual.status);
+    if (invalidatesApproval) {
+      update.status = 'em_analise';
+      update.aprovadoEm = null;
+      update.recusadoEm = null;
+      update.tokenAprovacaoHash = null;
+      update.tokenAprovacaoExpiraEm = null;
+    }
     try {
       await Manutencao.findByIdAndUpdate(req.params.id, Object.keys(unset).length ? { $set: update, $unset: unset } : { $set: update }, { runValidators: true });
     } catch (error) {
-      await adjustStockForUsageDiff(stockDiff.map(item => ({ ...item, quantidade: -item.quantidade })));
+      if (stockDiff.length) await adjustStockForUsageDiff(stockDiff.map(item => ({ ...item, quantidade: -item.quantidade })));
       throw error;
     }
-    setFlash(req, 'success', 'Ordem de serviço atualizada.');
-    return res.redirect('/manutencoes');
+    setFlash(req, 'success', invalidatesApproval
+      ? 'Ordem atualizada. O orçamento mudou, então o link anterior foi invalidado; gere e envie um novo link.'
+      : 'Ordem de serviço atualizada.');
+    return res.redirect(`/manutencoes/${req.params.id}`);
   } catch (err) {
     console.error(err);
     if (err.name === 'StockError') {
       return renderMaintenanceForm(
         res,
         400,
-        { ...req.body, _id: req.params.id, componentes: normalizeComponentIds(req.body.componentes) },
+        {
+          ...req.body,
+          _id: req.params.id,
+          componentes: normalizeComponentIds(req.body.componentes),
+          itensOrcamento: normalizeComponentUsage(req.body.componentes, req.body).map(item => ({
+            componente: item.componente,
+            quantidade: item.quantidade,
+            valorUnitario: Number(req.body[`preco-${item.componente}`] ?? 0),
+            descricao: sanitizeText(req.body[`descricaoComponente-${item.componente}`])
+          }))
+        },
         err.message
       );
     }
@@ -390,7 +689,9 @@ export const remove = async (req, res) => {
     const manutencao = await Manutencao.findById(req.params.id).lean();
 
     if (manutencao) {
-      await releaseComponentUsage(getStoredComponentUsage(manutencao));
+      if (manutencao.estoqueBaixado === true || manutencao.estoqueBaixado === undefined) {
+        await releaseComponentUsage(getStoredComponentUsage(manutencao));
+      }
       await Manutencao.findByIdAndDelete(req.params.id);
       setFlash(req, 'success', 'Ordem de serviço excluída e componentes devolvidos ao estoque.');
     }

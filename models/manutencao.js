@@ -11,9 +11,22 @@ const ManutencaoSchema = new mongoose.Schema({
   dataSaida: { type: Date },
   status: { 
     type: String, 
-    enum: ['em_analise', 'em_reparo', 'concluido'], 
+    enum: ['em_analise', 'aguardando_aprovacao', 'orcamento_aprovado', 'orcamento_recusado', 'em_reparo', 'concluido'],
     default: 'em_analise' 
   },
+  itensOrcamento: [{
+    componente: { type: mongoose.Schema.Types.ObjectId, ref: 'Componente' },
+    descricao: { type: String, required: true, trim: true },
+    quantidade: { type: Number, required: true, min: 1, default: 1 },
+    valorUnitario: { type: Number, required: true, min: 0, default: 0 }
+  }],
+  valorMaoDeObra: { type: Number, default: 0, min: 0 },
+  tokenAprovacaoHash: { type: String, select: false },
+  codigoAprovacao: { type: String, select: false },
+  tokenAprovacaoExpiraEm: { type: Date },
+  aprovadoEm: { type: Date },
+  recusadoEm: { type: Date },
+  estoqueBaixado: { type: Boolean },
   componentes: [{ 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Componente' 

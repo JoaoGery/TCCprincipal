@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(ensureAuthenticated);
 router.get('/', manutencaoController.list);
 router.get('/novo', manutencaoController.formCreate);
+router.post('/:id/orcamento/link', manutencaoController.generateApprovalLink);
 router.get('/:id', manutencaoController.view);
 router.post('/', manutencaoController.create);
 router.get('/:id/editar', manutencaoController.formEdit);

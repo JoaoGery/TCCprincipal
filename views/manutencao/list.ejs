@@ -26,6 +26,12 @@
             <select id="status" class="form-select" name="status">
               <option value="">Todos</option>
               <option value="em_analise" <%=status==='em_analise' ? 'selected' : '' %>>Em análise</option>
+              <option value="aguardando_aprovacao" <%=status==='aguardando_aprovacao' ? 'selected' : '' %>>Aguardando
+                aprovação</option>
+              <option value="orcamento_aprovado" <%=status==='orcamento_aprovado' ? 'selected' : '' %>>Orçamento
+                aprovado</option>
+              <option value="orcamento_recusado" <%=status==='orcamento_recusado' ? 'selected' : '' %>>Orçamento
+                recusado</option>
               <option value="em_reparo" <%=status==='em_reparo' ? 'selected' : '' %>>Em reparo</option>
               <option value="concluido" <%=status==='concluido' ? 'selected' : '' %>>Concluído</option>
             </select>
@@ -59,8 +65,11 @@
                 </thead>
                 <tbody>
                   <% manutencoes.forEach(function(manutencao, index){ %>
-                    <% const statusMap={ em_analise: ['status-analysis', 'Em análise' ], em_reparo:
-                      ['status-repair', 'Em reparo' ], concluido: ['status-done', 'Concluído' ] }; %>
+                    <% const statusMap={ em_analise: ['status-analysis', 'Em análise' ], aguardando_aprovacao:
+                      ['status-analysis', 'Aguardando aprovação' ], orcamento_aprovado:
+                      ['status-done', 'Orçamento aprovado' ], orcamento_recusado:
+                      ['status-rejected', 'Orçamento recusado' ], em_reparo: ['status-repair', 'Em reparo' ], concluido:
+                      ['status-done', 'Concluído' ] }; %>
                       <% const statusInfo=statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status' ]; %>
                         <tr>
                           <td><strong>

@@ -2,12 +2,15 @@
 
   <div class="container">
     <%- include('../partials/flash') %>
-      <% const statusMap={ em_analise: ['status-analysis', 'Em análise' ], em_reparo: ['status-repair', 'Em reparo' ],
+      <% const statusMap={ em_analise: ['status-analysis', 'Em análise' ], aguardando_aprovacao:
+        ['status-analysis', 'Aguardando aprovação' ], orcamento_aprovado: ['status-done', 'Orçamento aprovado' ],
+        orcamento_recusado: ['status-rejected', 'Orçamento recusado' ], em_reparo: ['status-repair', 'Em reparo' ],
         concluido: ['status-done', 'Concluído' ] }; %>
         <% const statusInfo=statusMap[manutencao.status] || ['bg-secondary text-white', 'Sem status' ]; %>
-          <% const componentesExibidos=(manutencao.componentesUsados && manutencao.componentesUsados.length) ?
+          <% const componentesExibidos=(manutencao.itensOrcamento && manutencao.itensOrcamento.length) ?
+            manutencao.itensOrcamento : ((manutencao.componentesUsados && manutencao.componentesUsados.length) ?
             manutencao.componentesUsados : (manutencao.componentes || []).map(function(componente) { return {
-            componente: componente, quantidade: 1 }; }); %>
+            componente: componente, quantidade: 1 }; })); %>
 
             <div class="d-flex flex-column flex-md-row justify-content-between gap-3 page-heading">
               <div>
@@ -86,17 +89,19 @@
 
               <div class="col-lg-4">
                 <section class="content-card form-card mb-3">
-                  <h2 class="h5 mb-3">Componentes</h2>
+                  <h2 class="h5 mb-3">Peças do orçamento</h2>
                   <% if (componentesExibidos.length) { %>
                     <ul class="list-group list-group-flush">
                       <% componentesExibidos.forEach(function(uso) { %>
                         <% const componente=uso.componente || {}; %>
                           <li class="list-group-item px-0 d-flex justify-content-between gap-2">
                             <span>
-                              <%= Number(uso.quantidade || 1) %>x <%= componente.nome || 'Componente removido' %>
+                              <%= Number(uso.quantidade || 1) %>x <%= uso.descricao || componente.nome
+                                  || 'Componente removido' %>
                             </span>
                             <span class="text-secondary">
-                              <%= componente.categoria || '-' %>
+                              R$ <%= (Number(uso.quantidade || 1) * Number(uso.valorUnitario ||
+                                0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %>
                             </span>
                           </li>
                           <% }) %>
@@ -110,6 +115,61 @@
                   <div class="info-label">Valor total</div>
                   <div class="metric-value">R$ <%= Number(manutencao.valorTotal || 0).toFixed(2) %>
                   </div>
+                  <div class="form-text">Inclui peças e mão de obra: R$ <%= Number(manutencao.valorMaoDeObra ||
+                      0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %>
+                  </div>
+                </section>
+
+                <section class="content-card form-card quote-share-card">
+                  <div class="page-eyebrow">Aprovação do cliente</div>
+                  <h2 class="h5 mb-2">Orçamento</h2>
+                  <% if (manutencao.status==='aguardando_aprovacao' ) { %>
+                    <p class="text-secondary">Aguardando o cliente aprovar ou recusar o valor de R$ <%=
+                        Number(manutencao.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2,
+                        maximumFractionDigits: 2 }) %>.</p>
+                    <% } else if (manutencao.status==='orcamento_aprovado' ) { %>
+                      <p class="text-success">Aprovado pelo cliente<%= manutencao.aprovadoEm ? ' em ' + new
+                          Date(manutencao.aprovadoEm).toLocaleString('pt-BR') : '' %>. O estoque será baixado ao iniciar
+                          o reparo.</p>
+                      <% } else if (manutencao.status==='orcamento_recusado' ) { %>
+                        <p class="text-secondary">O cliente recusou este orçamento<%= manutencao.recusadoEm ? ' em ' +
+                            new Date(manutencao.recusadoEm).toLocaleString('pt-BR') : '' %>.</p>
+                        <% } else if (['em_reparo', 'concluido' ].includes(manutencao.status)) { %>
+                          <p class="text-secondary">O reparo já foi iniciado; o orçamento não pode ser reenviado.</p>
+                          <% } else { %>
+                            <p class="text-secondary">Gere um link para o cliente consultar os valores e registrar sua
+                              decisão.</p>
+                            <% } %>
+
+                              <% if (!['em_reparo', 'concluido' ].includes(manutencao.status)) { %>
+                                <form method="post" action="/manutencoes/<%= manutencao._id %>/orcamento/link">
+                                  <button type="submit" class="btn btn-primary">
+                                    <%= approvalUrl ? 'Gerar novo link' : 'Gerar link de aprovação' %>
+                                  </button>
+                                </form>
+                                <small class="form-text">Um novo link invalida qualquer link anterior e expira em 7
+                                  dias.</small>
+                                <% } %>
+
+                                  <% if (approvalUrl) { %>
+                                    <label class="form-label mt-3" for="approvalUrl">Link para enviar ao cliente</label>
+                                    <div class="input-group">
+                                      <input id="approvalUrl" class="form-control" type="url" value="<%= approvalUrl %>"
+                                        readonly>
+                                      <button class="btn btn-outline-secondary" type="button"
+                                        data-copy-quote-link>Copiar</button>
+                                    </div>
+                                    <div class="customer-message-actions mt-3">
+                                      <% if (quoteWhatsappUrl) { %>
+                                        <a class="btn btn-success" href="<%= quoteWhatsappUrl %>" target="_blank"
+                                          rel="noopener noreferrer">Enviar pelo WhatsApp</a>
+                                        <% } %>
+                                          <% if (quoteGmailUrl) { %>
+                                            <a class="btn btn-outline-primary" href="<%= quoteGmailUrl %>"
+                                              target="_blank" rel="noopener noreferrer">Enviar por e-mail</a>
+                                            <% } %>
+                                    </div>
+                                    <% } %>
                 </section>
 
                 <section class="content-card form-card customer-message-card">
@@ -209,27 +269,36 @@
     </section>
 
     <section class="print-section">
-      <h2>Componentes utilizados</h2>
+      <h2>Peças previstas no orçamento</h2>
       <% if (componentesExibidos.length) { %>
         <table class="print-table">
           <thead>
             <tr>
-              <th>Componente</th>
-              <th>Categoria</th>
+              <th>Peça</th>
+              <th>Qtd.</th>
+              <th>Unitário</th>
+              <th class="text-end">Subtotal</th>
             </tr>
           </thead>
           <tbody>
             <% componentesExibidos.forEach(function(uso) { %>
               <% const componente=uso.componente || {}; %>
-                <tr>
-                  <td>
-                    <%= Number(uso.quantidade || 1) %>x <%= componente.nome || '-' %>
-                  </td>
-                  <td>
-                    <%= componente.categoria || '-' %>
-                  </td>
-                </tr>
-                <% }) %>
+                <% const unitario=Number(uso.valorUnitario ?? componente.precoUnitario ?? 0); %>
+                  <tr>
+                    <td>
+                      <%= uso.descricao || componente.nome || '-' %>
+                    </td>
+                    <td>
+                      <%= Number(uso.quantidade || 1) %>
+                    </td>
+                    <td>R$ <%= unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        %>
+                    </td>
+                    <td class="text-end">R$ <%= (unitario * Number(uso.quantidade || 1)).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2, maximumFractionDigits: 2 }) %>
+                    </td>
+                  </tr>
+                  <% }) %>
           </tbody>
         </table>
         <% } else { %>
@@ -293,16 +362,38 @@
     </section>
 
     <section class="print-section">
-      <h2>Serviços / componentes</h2>
+      <h2>Peças previstas no orçamento</h2>
       <% if (componentesExibidos.length) { %>
-        <ul class="print-list">
-          <% componentesExibidos.forEach(function(uso) { %>
-            <% const componente=uso.componente || {}; %>
-              <li>
-                <%= Number(uso.quantidade || 1) %>x <%= componente.nome || 'Componente utilizado' %>
-              </li>
-              <% }) %>
-        </ul>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Peça</th>
+              <th>Qtd.</th>
+              <th>Unitário</th>
+              <th>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% componentesExibidos.forEach(function(uso) { %>
+              <% const componente=uso.componente || {}; %>
+                <% const unitario=Number(uso.valorUnitario ?? componente.precoUnitario ?? 0); %>
+                  <tr>
+                    <td>
+                      <%= uso.descricao || componente.nome || 'Peça orçada' %>
+                    </td>
+                    <td>
+                      <%= Number(uso.quantidade || 1) %>
+                    </td>
+                    <td>R$ <%= unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        %>
+                    </td>
+                    <td>R$ <%= (unitario * Number(uso.quantidade || 1)).toLocaleString('pt-BR', { minimumFractionDigits:
+                        2, maximumFractionDigits: 2 }) %>
+                    </td>
+                  </tr>
+                  <% }) %>
+          </tbody>
+        </table>
         <% } else { %>
           <p>Nenhum componente informado.</p>
           <% } %>
@@ -326,6 +417,18 @@
   </section>
 
   <script>
+    document.querySelector('[data-copy-quote-link]')?.addEventListener('click', async function () {
+      const input = document.getElementById('approvalUrl');
+      try {
+        await navigator.clipboard.writeText(input.value);
+        this.textContent = 'Copiado';
+      } catch {
+        input.select();
+        document.execCommand('copy');
+        this.textContent = 'Copiado';
+      }
+    });
+
     document.querySelectorAll('[data-print-os]').forEach(function (button) {
       button.addEventListener('click', function () {
         document.body.dataset.printMode = button.dataset.printOs;

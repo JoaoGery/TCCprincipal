@@ -281,6 +281,11 @@ body {
   background: #d9f7eb;
 }
 
+.status-rejected {
+  color: #7a1d1d;
+  background: #ffe0e0;
+}
+
 .stock-ok {
   color: #0d5c42;
   background: #d9f7eb;
@@ -558,6 +563,149 @@ textarea.form-control {
   --bs-btn-border-color: #16835d;
   --bs-btn-hover-bg: #116c4c;
   --bs-btn-hover-border-color: #116c4c;
+}
+
+.quote-total-preview {
+  display: flex;
+  min-height: 48px;
+  padding: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f4f7fc;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+}
+
+.quote-total-preview span {
+  color: var(--app-muted);
+  font-size: .86rem;
+  font-weight: 700;
+}
+
+.quote-total-preview strong {
+  color: var(--app-text);
+  font-size: 1.15rem;
+}
+
+.quote-share-card>.form-text {
+  display: block;
+}
+
+.public-quote-brand {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-card);
+}
+
+.public-quote-brand .container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.public-quote-shell {
+  min-height: calc(100vh - 130px);
+}
+
+.public-quote-page {
+  max-width: 860px;
+}
+
+.public-quote {
+  padding: clamp(20px, 4vw, 36px);
+  background: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(35, 48, 80, .07);
+}
+
+.public-quote-header {
+  display: flex;
+  margin-bottom: 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.public-quote-header .status-badge {
+  flex: 0 0 auto;
+}
+
+.public-quote-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--app-border);
+}
+
+.public-quote-section h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.public-quote-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
+
+.public-quote-meta dt {
+  color: var(--app-muted);
+  font-size: .78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.public-quote-meta dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.public-quote-totals {
+  display: grid;
+  max-width: 340px;
+  gap: 8px;
+  margin: 16px 0 0 auto;
+}
+
+.public-quote-totals>div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.public-quote-grand-total {
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border);
+  font-size: 1.15rem;
+}
+
+.public-quote-decision {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--app-border);
+}
+
+.public-quote-decision p {
+  color: var(--app-muted);
+}
+
+.quote-link-expiry {
+  margin: 14px 0 0;
+  color: var(--app-muted);
+  font-size: .85rem;
+}
+
+@media (max-width: 575.98px) {
+  .public-quote-header {
+    flex-direction: column;
+  }
+
+  .public-quote-meta {
+    grid-template-columns: 1fr;
+  }
 }
 
 .filter-card .form-control,

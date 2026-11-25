@@ -56,6 +56,7 @@ npm install
 ```bash
 MONGODB_URI=mongodb://127.0.0.1:27017/manutencao_computadores
 SESSION_SECRET=uma_chave_segura_para_sessao
+PUBLIC_BASE_URL=https://seu-dominio.example
 ```
 
 3. Inicie o projeto:
@@ -77,7 +78,10 @@ O sistema ficará disponível em `http://localhost:3001`.
 
 ## Regras de negócio importantes
 
-- Cada componente selecionado em uma ordem consome uma unidade do estoque; ao removê-lo da ordem ou excluir a ordem, a unidade é devolvida.
+- Os componentes e quantidades selecionados compõem o orçamento; eles não são baixados do estoque enquanto aguardam aprovação.
+- O cliente recebe um link individual de aprovação, válido por sete dias, para aprovar ou recusar o orçamento.
+- O estoque é baixado na quantidade orçada quando a OS aprovada passa para "Em reparo"; ao excluir uma OS com estoque baixado, as quantidades são devolvidas.
+- Configure `PUBLIC_BASE_URL` com a URL pública da aplicação para que os links de aprovação funcionem fora do ambiente local.
 - Clientes e componentes vinculados a ordens de serviço não podem ser excluídos, preservando a rastreabilidade dos atendimentos.
 - Ao concluir uma ordem, a data de saída é registrada automaticamente e o valor entra no faturamento exibido no painel.
 
