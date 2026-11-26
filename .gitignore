@@ -122,6 +122,11 @@ e cache directory
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Local environment variables
+.env
+.env.*
+!.env.example
+
 # Docusaurus cache and generated files
 .docusaurus
 
